@@ -1,0 +1,10 @@
+set-xtpath "Panic" $global:eShscriptroot
+esx panic panic -erroraction silentlycontinue
+if (get-command Invoke-Panic -erroraction silentlycontinue) {
+	write-host "Successfully installed Panic Addon" -foreground green
+} else {
+	write-host "Failed to Install Panic Addon" -foreground red
+}
+write-host "Press Enter to Exit"
+read-host
+exit

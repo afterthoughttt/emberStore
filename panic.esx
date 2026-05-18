@@ -1,0 +1,49 @@
+function Invoke-Panic {
+    param([string]$Message = "A fatal error has occurred.")
+    
+    [Console]::BackgroundColor = "Blue"
+    [Console]::ForegroundColor = "White"
+    [Console]::Clear()
+    [Console]::CursorVisible = $false
+
+    $width = [Console]::WindowWidth
+    $height = [Console]::WindowHeight
+
+    $logo = @(
+	    "                  ",
+        "      ____  _     ",
+        "  ___/ ___|| |__  ",
+        " / _ \___ \| '_ \ ",
+        "|  __/___) | | | |",
+        " \___|____/|_| |_|"
+    )
+
+    function Center-Text($text) {
+        $pad = [math]::Floor(($width - $text.Length) / 2)
+        return (" " * [math]::Max(0, $pad)) + $text
+    }
+
+    # vertical centering: logo(6) + spacing(3) + text(5) = 14 lines
+    $topPad = [math]::Floor(($height - 14) / 2)
+
+    Write-Host ("`n" * $topPad) -NoNewline
+
+    foreach ($line in $logo) {
+        Write-Host (Center-Text $line)
+    }
+
+    Write-Host ""
+    Write-Host ""
+    Write-Host (Center-Text "SHELL PANIC!")
+    Write-Host ""
+    Write-Host (Center-Text "Please Restart emberShell.")
+    Write-Host ""
+    Write-Host (Center-Text $Message)
+    [Console]::CursorVisible = $false
+    Read-Host
+    exit
+    [Console]::ResetColor()
+    [Console]::Clear()
+}
+
+$global:clib_panic_addon = $true
