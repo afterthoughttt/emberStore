@@ -1,0 +1,10 @@
+set-xtpath "Panic" $global:eShscriptroot
+esx paper panic -erroraction silentlycontinue
+if (get-command Invoke-Panic -erroraction silentlycontinue) {
+	write-host "Successfully installed PAPER Addon" -foreground green
+} else {
+	write-host "Failed to Install PAPER Addon" -foreground red
+}
+write-host "Press Enter to Exit"
+read-host
+exit
