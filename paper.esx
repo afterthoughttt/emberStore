@@ -1,3 +1,4 @@
+# Plain Alternate Panic Enricher Runtime
 function Invoke-Panic {
     param([string]$Message = "A fatal error has occurred.")
     
