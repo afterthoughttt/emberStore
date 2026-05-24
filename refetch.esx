@@ -1,0 +1,111 @@
+# refetch
+# riceable cfetch frontend
+function cfetch($larp, [switch]$clean) {
+    if ($clean) { Clear-Host }
+    $data = legacfetch $larp -precise -bloat -extra -locale -diskusage -clean:$clean -backend
+    $infoLines = $data -split "`n"
+    $osKey = ($infoLines | Where-Object { $_ -match "^OSKey:" }) -replace "OSKey:\s+", ""
+    $infoLines = $infoLines | Where-Object { $_ -notmatch "^OSKey:" }
+    $ricePath = Join-Path $eShScriptRoot "refetch.rice"
+    $rice = Get-Content $ricePath -Raw | ConvertFrom-Json
+    $B            = $rice.Borders
+    $sectionIcons = $rice.Icons.Sections
+    $infoIcons    = $rice.Icons.Info
+    $resolvedosc  = resolveOSC $osKey
+    $logoName     = if ($osKey -notin $validOSes) { "fetch_unknown_os" } else { $osKey }
+    $logoRaw      = render $logoName
+    $logoLines    = $logoRaw -split "`n"
+    $maxLogoWidth = ($logoLines | ForEach-Object {
+        ($_ -replace '\x1b\[[0-9;]*[mGKHF]', '').Length
+    } | Measure-Object -Maximum).Maximum
+    $cursorColumn = $maxLogoWidth + 4
+    function Strip-Ansi($s) { $s -replace '\x1b\[[0-9;]*[mGKHF]', '' }
+    $infoMap = @{}
+    $lastKey = $null
+    foreach ($line in $infoLines) {
+        $cleanLine = Strip-Ansi $line
+        if ($cleanLine -match '^\s+\S') {
+            if ($lastKey -and $cleanLine.Trim() -ne "") {
+                $infoMap[$lastKey] += "`n" + $cleanLine.Trim()
+            }
+        } elseif ($cleanLine -match '^(.+?):\s+(.+)$') {
+            $lastKey = $Matches[1].Trim()
+            $infoMap[$lastKey] = $Matches[2].Trim()
+        }
+    }
+    $orderedSections = $rice.SectionOrder.PSObject.Properties |
+        Sort-Object Value |
+        ForEach-Object {
+            $key = $_.Name
+            $sec = $rice.Sections.$key
+            if (-not $sec -or -not $sec.Visible) { return }
+            $orderedContents = $sec.Contents.PSObject.Properties |
+                Sort-Object Value |
+                ForEach-Object { $_.Name } |
+                Where-Object { $infoMap.ContainsKey($_) }
+            [PSCustomObject]@{
+                Key      = $key
+                Display  = $sec.DisplayName
+                Contents = $orderedContents
+            }
+        }
+    function Render-Section($sec, $currentColor) {
+        $lines = @()
+        $icon      = if ($sectionIcons.PSObject.Properties.Name -contains $sec.Key) { $sectionIcons.($sec.Key) + " " } else { "" }
+        $titleText = "$icon$($sec.Display)"
+        $contentLines = $sec.Contents | ForEach-Object {
+            $label = $_
+            $rawLine = $infoLines | ForEach-Object {
+                $c = Strip-Ansi $_
+                if ($c -match "^$([regex]::Escape($label)):\s") { $c }
+            } | Select-Object -First 1
+            $ico = if ($infoIcons.PSObject.Properties.Name -contains $label) { $infoIcons.$label + " " } else { "" }
+            $primary = if ($rawLine) { "$ico$($rawLine.Trim())" } else { "$ico${label}: $($infoMap[$label].Split("`n")[0])" }
+            $extras = if ($infoMap[$label] -match "`n") {
+				$infoMap[$label].Split("`n")[1..999] | ForEach-Object { " " * ($label.Length + 4) + $_ }
+			} else { @() }
+            @($primary) + $extras
+        } | ForEach-Object { $_ }
+        $allTexts   = @($titleText) + $contentLines
+        $innerWidth = ($allTexts | ForEach-Object { $_.Length } | Measure-Object -Maximum).Maximum + 2
+        $topFillLen = $innerWidth - $B.TopMiddle.Length - 1 - $titleText.Length - 1
+        $topFill    = $B.TopMiddle * $topFillLen
+        $topBorder  = "$($B.TopLeft)$($B.TopMiddle) $titleText $topFill$($B.TopRight)"
+        $lines     += "$currentColor$topBorder"
+        foreach ($cl in $contentLines) {
+            $padLen = $innerWidth - 1 - $cl.Length
+            $pad    = " " * $padLen
+            $lines += "$currentColor$($B.Left) $cl$pad$($B.Right)"
+        }
+        $bottomFill = $B.BottomMiddle * $innerWidth
+        $lines     += "$currentColor$($B.BottomLeft)$bottomFill$($B.BottomRight)"
+        return $lines
+    }
+    $lastLogoColor = $null
+    for ($j = $logoLines.Count - 1; $j -ge 0; $j--) {
+        $match = [regex]::Match($logoLines[$j], '^\x1b\[[0-9;]*m')
+        if ($match.Success) { $lastLogoColor = $match.Value; break }
+    }
+    $currentColor = if ($lastLogoColor) { $lastLogoColor } else { $resolvedosc }
+    $allBoxLines = @()
+    foreach ($sec in $orderedSections) {
+        $allBoxLines += Render-Section $sec $currentColor
+        $allBoxLines += ""
+    }
+    Write-Host $logoRaw
+    $moveUp = $logoLines.Count
+    Write-Host "`e[${moveUp}A" -NoNewline
+    $totalRows = [Math]::Max($logoLines.Count, $allBoxLines.Count)
+    for ($i = 0; $i -lt $totalRows; $i++) {
+        if ($i -lt $logoLines.Count) {
+            $match = [regex]::Matches($logoLines[$i], '\x1b\[[0-9;]*m') | Select-Object -Last 1
+            if ($match.Success) { $currentColor = $match.Value }
+        }
+        if ($i -lt $allBoxLines.Count -and $allBoxLines[$i] -ne "") {
+            Write-Host "`e[${cursorColumn}G$($allBoxLines[$i])"
+        } else {
+            Write-Host ""
+        }
+    }
+    Write-Host $color.reset
+}

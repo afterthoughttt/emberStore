@@ -1,0 +1,56 @@
+set-xtpath "refetch" $global:eShscriptroot
+function confirm($content, $y, $n, $default) {
+	write-host "$content`n[$y/$n]"
+	$answer = read-host
+	if ($answer -eq $y) {
+		return $true
+	} elseif ($answer -eq $n) {
+		return $false
+	} else {
+		return $default
+	}
+}
+$autolaunch = confirm "Launch refetch along with emberShell?" "Y" "n" $true
+if ($autolaunch) {
+	$emberRicePath = Join-Path $global:emberRoot "emberCore\ember.rice"
+	$emberRice = Get-Content $emberRicePath -Raw | ConvertFrom-Json
+	$emberRice | Add-Member -NotePropertyName "refetch" -NotePropertyValue "refetch" -Force # key = mod path, value = mod name
+	$emberRice | ConvertTo-Json | Set-Content $emberRicePath
+}
+if (-not (test-path (join-path $global:eShscriptroot "refetch.rice"))) {
+@"
+{
+	"Sections": {
+		"placeholder": {
+			"Visible": true,
+			"DisplayName": "install a rice to use refetch."
+		}
+	},
+	"SectionOrder": {
+		"placeholder": 1
+	},
+	"Icons": {
+		"Info": {
+		},
+		"Sections": {
+		}
+	},
+	"Borders": {
+		"TopLeft": "┌",
+		"TopMiddle": "─",
+		"TopRight": "┐",
+		"Left": "│",
+		"Right": "│",
+		"BottomLeft": "└",
+		"BottomMiddle": "─",
+		"BottomRight": "┘"
+	}
+}
+"@ | Set-Content (Join-Path $global:eShScriptRoot "refetch.rice")
+write-host "Created refetch.rice"
+}
+esx refetch refetch -erroraction silentlycontinue
+write-host "Successfully installed refetch Addon" -foreground green
+write-host "Press Enter to Exit"
+read-host
+exit
